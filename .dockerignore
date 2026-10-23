@@ -5,3 +5,8 @@ __pycache__
 *.pyc
 progresso.db
 .env
+token.txt
+.vscode
+storage
+*.db
+README.md
