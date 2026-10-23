@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -10,10 +9,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /bin/uv
 
 WORKDIR /app
 
-# Cache persistente entre builds: só baixa de novo o que mudou no requirements.txt
+# Copiado antes do código: a camada de dependências só é refeita quando o requirements.txt muda.
+# Sem RUN --mount: o manage.py constrói pelo Docker SDK, que não usa BuildKit.
 COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -r requirements.txt
+RUN uv pip install --system --no-cache -r requirements.txt
 
 COPY . .
 
