@@ -57,9 +57,11 @@ class Analisador:
     def __init__(self, modelo: str = MODELO_ANALISE):
         self.modelo = modelo
         self.ollama = _cliente_ollama()
+        self.ultimo_erro: str | None = None
 
     def analisar(self, texto: str) -> dict | None:
         """Devolve a análise organizada, ou None se o modelo falhar (o agente faz sozinho)."""
+        self.ultimo_erro = None
         try:
             resp = self.ollama.chat(
                 model=self.modelo,
@@ -73,13 +75,15 @@ class Analisador:
             analise = json.loads(resp.message.content or "{}")
         except Exception as e:
             log.warning("Análise falhou, o agente seguirá sem ela: %s", e)
+            self.ultimo_erro = str(e)
             return None
 
         analise["ingles"] = analise.get("ingles", "").strip().lower().strip(".,!?\"")
         analise["portugues"] = analise.get("portugues", "").strip()
-        # Não confia cegamente no modelo: o termo em inglês precisa ser algo pronunciável.
-        if analise.get("valido") and not PADRAO_INGLES.match(analise["ingles"]):
-            analise["valido"] = False
+        # Não confia no "valido" do modelo (modelos pequenos marcam false mesmo acertando a
+        # tradução): a palavra é válida se o termo em inglês for algo pronunciável.
+        analise["valido"] = bool(PADRAO_INGLES.match(analise["ingles"]))
+        if not analise["valido"]:
             analise["observacao"] = analise.get("observacao") or "Não consegui identificar a palavra."
         log.info("Análise: %s", analise)
         return analise

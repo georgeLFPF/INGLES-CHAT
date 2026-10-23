@@ -1,5 +1,6 @@
 """Interface Streamlit do Tutor de Pronúncia."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 
 # Lê as variáveis do .env (se existir) antes de importar o agente, que as usa ao carregar.
 load_dotenv(RAIZ / ".env")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 # Permite importar os módulos do back-end que ficam na raiz do projeto.
 sys.path.insert(0, str(RAIZ))
@@ -37,6 +39,8 @@ agente: Agente = st.session_state.agente
 
 
 def mostrar_cartao(cartao: dict) -> None:
+    if cartao.get("aviso_analise"):
+        st.warning(cartao["aviso_analise"])
     if "erro" in cartao:
         st.warning(cartao["erro"])
         if cartao.get("bruto"):

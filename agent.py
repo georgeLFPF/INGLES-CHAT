@@ -87,6 +87,19 @@ def _cliente_ollama() -> ollama.Client:
     return ollama.Client(host=os.getenv("OLLAMA_HOST"), headers=headers or None)
 
 
+def verificar_modelos(cliente: ollama.Client, *modelos: str) -> None:
+    """Falha cedo, com mensagem clara, se o servidor Ollama não tiver os modelos."""
+    host = os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+    disponiveis = {m.model for m in cliente.list().models}
+    faltando = [m for m in modelos if m not in disponiveis and f"{m}:latest" not in disponiveis]
+    if faltando:
+        raise RuntimeError(
+            f"O Ollama em {host} não tem os modelos {', '.join(faltando)} "
+            f"(disponíveis: {', '.join(sorted(disponiveis)) or 'nenhum'}). "
+            f"Rode `ollama pull {' '.join(faltando)}` ou ajuste OLLAMA_HOST."
+        )
+
+
 def _texto_resultado(resultado) -> str:
     return "\n".join(c.text for c in resultado.content if getattr(c, "text", None))
 
@@ -109,6 +122,7 @@ class Agente:
         self.memoria = MemoriaCurtoPrazo()
         self.rag = BaseRegras()
         self.analisador = Analisador()
+        verificar_modelos(self.ollama, self.modelo, self.analisador.modelo)
 
     # ---------- API pública (síncrona, para o Streamlit) ----------
 
@@ -137,6 +151,8 @@ class Agente:
         cartao = extrair_json(resposta) or {"erro": "Resposta inesperada do modelo.", "bruto": resposta}
         if analise and "ingles" in cartao:
             cartao["analise"] = analise
+        if self.analisador.ultimo_erro:
+            cartao["aviso_analise"] = f"O modelo de análise falhou: {self.analisador.ultimo_erro}"
         if "ingles" in cartao:
             self.memoria.registrar_palavra(cartao["ingles"])
             self.memoria.adicionar("user", f"Como se pronuncia '{palavra}'?")
