@@ -1,0 +1,58 @@
+services:
+  # Servidor Ollama (modelos de chat e de análise)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tutor-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Baixa os modelos de chat e de análise uma única vez (ficam salvos no volume ollama_models)
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: tutor-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama pull ${OLLAMA_MODEL:-llama3.1} &&
+        ollama pull ${OLLAMA_ANALYSIS_MODEL:-llama3.2}
+    restart: "no"
+
+  # Aplicação Streamlit (o agente inicia o servidor MCP via stdio dentro deste container)
+  app:
+    build: .
+    container_name: tutor-app
+    ports:
+      - "8501:8501"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      OLLAMA_ANALYSIS_MODEL: ${OLLAMA_ANALYSIS_MODEL:-llama3.2}
+      HF_EMBED_MODEL: ${HF_EMBED_MODEL:-Xenova/paraphrase-multilingual-MiniLM-L12-v2}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HOME: /app/storage/huggingface
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      DB_PATH: /app/storage/progresso.db
+      CHROMA_DIR: /app/storage/.chroma
+    volumes:
+      - app_data:/app/storage
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
+  app_data:

@@ -1,0 +1,7 @@
+.venv
+.git
+.chroma
+__pycache__
+*.pyc
+progresso.db
+.env
