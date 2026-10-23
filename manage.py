@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 import docker
-from docker.errors import APIError, DockerException, NotFound
+from docker.errors import APIError, BuildError, DockerException, NotFound
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -105,10 +105,52 @@ def baixar_modelos(container) -> None:
 
 def construir_app(client: docker.DockerClient) -> None:
     log.info("Construindo imagem %s...", IMAGEM_APP)
-    _, logs = client.images.build(path=str(BASE_DIR), tag=IMAGEM_APP, rm=True)
+    try:
+        _, logs = client.images.build(path=str(BASE_DIR), tag=IMAGEM_APP, rm=True)
+    except BuildError as e:
+        for linha in e.build_log:
+            if texto := linha.get("stream", "").strip():
+                log.info("  %s", texto)
+        # Sem isso o container antigo continuaria rodando o código desatualizado.
+        raise RuntimeError(f"Falha ao construir a imagem da aplicação: {e.msg}") from e
     for linha in logs:
         if texto := linha.get("stream", "").strip():
             log.info("  %s", texto)
+
+
+def verificar_app(client: docker.DockerClient, tentativas: int = 60) -> None:
+    """Espera o Streamlit responder e confere, de dentro do container, se ele enxerga o Ollama."""
+    log.info("Aguardando o Streamlit ficar pronto...")
+    container = client.containers.get(CONTAINER_APP)
+    for _ in range(tentativas):
+        container.reload()
+        if container.status in ("exited", "dead"):
+            break
+        saude = container.exec_run(
+            ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')"]
+        )
+        if saude.exit_code == 0:
+            break
+        time.sleep(2)
+    else:
+        raise RuntimeError("O Streamlit não respondeu a tempo. Veja: docker logs tutor-app")
+
+    if container.status != "running":
+        logs = container.logs(tail=40).decode(errors="replace")
+        raise RuntimeError(f"O container {CONTAINER_APP} parou ao iniciar. Últimos logs:\n{logs}")
+
+    # Mesma checagem que o agente faz ao abrir a página, mas aqui o erro aparece no terminal.
+    teste = container.exec_run(
+        ["python", "-c", "from agent import _cliente_ollama, verificar_modelos, MODELO_CHAT; "
+         "from analisador import MODELO_ANALISE; "
+         "verificar_modelos(_cliente_ollama(), MODELO_CHAT, MODELO_ANALISE)"],
+        workdir="/app",
+    )
+    if teste.exit_code != 0:
+        raise RuntimeError(
+            f"A aplicação não conseguiu falar com o Ollama:\n{teste.output.decode(errors='replace')}"
+        )
+    log.info("Streamlit conectado ao Ollama (%s, %s).", MODELO_CHAT, MODELO_ANALISE)
 
 
 def subir_app(client: docker.DockerClient) -> None:
@@ -147,6 +189,7 @@ def start(client: docker.DockerClient) -> None:
     baixar_modelos(ollama)
     construir_app(client)
     subir_app(client)
+    verificar_app(client)
     log.info("\nPronto! Acesse http://localhost:8501")
 
 
