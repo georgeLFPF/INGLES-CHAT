@@ -166,6 +166,22 @@ python manage.py stop
 
 Os modelos baixados e o histórico de palavras ficam salvos nos volumes e são reaproveitados na próxima vez.
 
+### Pouca memória (erro ao enviar mensagem no chat)
+
+Se o chat responder com erro e o log do Ollama (`docker logs tutor-ollama`) mostrar `insufficient memory` ou `unable to allocate CPU_REPACK buffer`, o modelo não coube na RAM. O `llama3.1` (8B) precisa de uns 5 GB livres. Nesse caso:
+
+1. Troque o modelo no `.env` por um menor: `OLLAMA_MODEL=llama3.2` (3B, uns 3 GB) ou `llama3.2:1b` (mais leve, respostas piores).
+2. Se o Docker roda no WSL, aumente a memória dele criando `C:\Users\<usuario>\.wslconfig`:
+
+   ```ini
+   [wsl2]
+   memory=3GB
+   swap=4GB
+   ```
+
+   Depois rode `wsl --shutdown` no Windows e suba os containers de novo.
+3. Pare outros containers que não esteja usando, para liberar RAM.
+
 ### Alternativa: Docker Compose
 
 ```bash
