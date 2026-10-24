@@ -155,6 +155,8 @@ python manage.py start
 
 O comando baixa a imagem do Ollama, cria a rede e os volumes, sobe o container do Ollama, baixa os modelos (só demora na primeira vez), constrói a imagem e sobe a aplicação. Ao final, acesse `http://localhost:8501`.
 
+Nas execuções seguintes, a imagem do Ollama e os modelos que já existem localmente não são baixados de novo, o build da aplicação roda em paralelo com a subida do Ollama, e o container da aplicação é mantido se nada mudou. Para buscar versões novas da imagem do Ollama e dos modelos, use `python manage.py start --atualizar`.
+
 ### 4. Parar os containers
 
 ```bash
