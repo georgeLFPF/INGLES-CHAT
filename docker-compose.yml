@@ -24,10 +24,12 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: http://ollama:11434
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
     entrypoint: ["/bin/sh", "-c"]
+    # Com OLLAMA_API_KEY o modelo roda no Ollama Cloud e não precisa ser baixado.
     command:
       - |
-        ollama show ${OLLAMA_MODEL:-llama3.1} >/dev/null 2>&1 || ollama pull ${OLLAMA_MODEL:-llama3.1}
+        [ -n "$$OLLAMA_API_KEY" ] || ollama show ${OLLAMA_MODEL:-llama3.1} >/dev/null 2>&1 || ollama pull ${OLLAMA_MODEL:-llama3.1}
     restart: "no"
 
   # Aplicação Streamlit (o agente inicia o servidor MCP via stdio dentro deste container)

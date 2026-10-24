@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).parent
 MODELO_CHAT = os.getenv("OLLAMA_MODEL", "llama3.1")
 MAX_RODADAS_TOOLS = 6
+OLLAMA_CLOUD = "https://ollama.com"
 
 SERVIDOR_MCP = StdioServerParameters(
     command=sys.executable,
@@ -80,16 +81,23 @@ INSTRUCAO_CARTAO_ANALISADO = """A etapa de análise já preparou a palavra:
 Se a palavra não existir no dicionário, responda {{"erro": "explicação curta"}}."""
 
 
+def _host_ollama() -> str:
+    # Com a chave do Ollama Cloud, o modelo roda nos servidores do Ollama em vez do local.
+    if os.getenv("OLLAMA_API_KEY"):
+        return OLLAMA_CLOUD
+    return os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+
+
 def _cliente_ollama() -> ollama.Client:
     headers = {}
     if api_key := os.getenv("OLLAMA_API_KEY"):
         headers["Authorization"] = f"Bearer {api_key}"
-    return ollama.Client(host=os.getenv("OLLAMA_HOST"), headers=headers or None)
+    return ollama.Client(host=_host_ollama(), headers=headers or None)
 
 
 def verificar_modelos(cliente: ollama.Client, *modelos: str) -> None:
     """Falha cedo, com mensagem clara, se o servidor Ollama não tiver os modelos."""
-    host = os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+    host = _host_ollama()
     disponiveis = {m.model for m in cliente.list().models}
     faltando = [m for m in modelos if m not in disponiveis and f"{m}:latest" not in disponiveis]
     if faltando:
