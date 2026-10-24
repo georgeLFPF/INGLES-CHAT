@@ -9,9 +9,10 @@ services:
       - ollama_models:/root/.ollama
     healthcheck:
       test: ["CMD", "ollama", "list"]
-      interval: 10s
+      # Intervalo curto: o "up" só segue quando o Ollama fica saudável.
+      interval: 2s
       timeout: 5s
-      retries: 10
+      retries: 30
     restart: unless-stopped
 
   # Baixa os modelos de chat e de análise uma única vez (ficam salvos no volume ollama_models)
@@ -26,8 +27,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        ollama pull ${OLLAMA_MODEL:-llama3.1} &&
-        ollama pull ${OLLAMA_ANALYSIS_MODEL:-llama3.2}
+        (ollama show ${OLLAMA_MODEL:-llama3.1} >/dev/null 2>&1 || ollama pull ${OLLAMA_MODEL:-llama3.1}) &&
+        (ollama show ${OLLAMA_ANALYSIS_MODEL:-llama3.2} >/dev/null 2>&1 || ollama pull ${OLLAMA_ANALYSIS_MODEL:-llama3.2})
     restart: "no"
 
   # Aplicação Streamlit (o agente inicia o servidor MCP via stdio dentro deste container)
