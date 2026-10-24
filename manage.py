@@ -2,7 +2,7 @@
 
 Uso:
     python manage.py start             # sobe tudo, reaproveitando imagens e modelos já baixados
-    python manage.py start --atualizar # também baixa versões novas da imagem do Ollama e dos modelos
+    python manage.py start --atualizar # também baixa versões novas da imagem do Ollama e do modelo
     python manage.py stop              # para e remove os containers (volumes são mantidos)
 """
 
@@ -32,7 +32,6 @@ CONTAINER_OLLAMA = "tutor-ollama"
 CONTAINER_APP = "tutor-app"
 
 MODELO_CHAT = os.getenv("OLLAMA_MODEL", "llama3.1")
-MODELO_ANALISE = os.getenv("OLLAMA_ANALYSIS_MODEL", "llama3.2")
 MODELO_EMBEDDING = os.getenv("HF_EMBED_MODEL", "Xenova/paraphrase-multilingual-MiniLM-L12-v2")
 
 
@@ -105,19 +104,18 @@ def esperar_ollama(container, tentativas: int = 60) -> None:
     raise RuntimeError("O Ollama não respondeu a tempo.")
 
 
-def baixar_modelos(container, atualizar: bool = False) -> None:
+def baixar_modelo(container, atualizar: bool = False) -> None:
     # O modelo de embeddings vem do Hugging Face e é baixado pela própria aplicação.
-    for modelo in dict.fromkeys((MODELO_CHAT, MODELO_ANALISE)):
-        # "ollama pull" sempre consulta o registry; se o modelo já está no volume, pula.
-        if not atualizar and container.exec_run(["ollama", "show", modelo]).exit_code == 0:
-            log.info("Modelo %s já está baixado.", modelo)
-            continue
-        log.info("Baixando modelo %s (só demora na primeira vez)...", modelo)
-        resultado = container.exec_run(f"ollama pull {modelo}")
-        if resultado.exit_code != 0:
-            raise RuntimeError(
-                f"Falha ao baixar {modelo}: {resultado.output.decode(errors='replace')}"
-            )
+    # "ollama pull" sempre consulta o registry; se o modelo já está no volume, pula.
+    if not atualizar and container.exec_run(["ollama", "show", MODELO_CHAT]).exit_code == 0:
+        log.info("Modelo %s já está baixado.", MODELO_CHAT)
+        return
+    log.info("Baixando modelo %s (só demora na primeira vez)...", MODELO_CHAT)
+    resultado = container.exec_run(f"ollama pull {MODELO_CHAT}")
+    if resultado.exit_code != 0:
+        raise RuntimeError(
+            f"Falha ao baixar {MODELO_CHAT}: {resultado.output.decode(errors='replace')}"
+        )
 
 
 def construir_app(client: docker.DockerClient):
@@ -160,22 +158,20 @@ def verificar_app(client: docker.DockerClient, tentativas: int = 120) -> None:
     # Mesma checagem que o agente faz ao abrir a página, mas aqui o erro aparece no terminal.
     teste = container.exec_run(
         ["python", "-c", "from agent import _cliente_ollama, verificar_modelos, MODELO_CHAT; "
-         "from analisador import MODELO_ANALISE; "
-         "verificar_modelos(_cliente_ollama(), MODELO_CHAT, MODELO_ANALISE)"],
+         "verificar_modelos(_cliente_ollama(), MODELO_CHAT)"],
         workdir="/app",
     )
     if teste.exit_code != 0:
         raise RuntimeError(
             f"A aplicação não conseguiu falar com o Ollama:\n{teste.output.decode(errors='replace')}"
         )
-    log.info("Streamlit conectado ao Ollama (%s, %s).", MODELO_CHAT, MODELO_ANALISE)
+    log.info("Streamlit conectado ao Ollama (%s).", MODELO_CHAT)
 
 
 def _ambiente_app() -> dict[str, str]:
     return {
         "OLLAMA_HOST": f"http://{CONTAINER_OLLAMA}:11434",
         "OLLAMA_MODEL": MODELO_CHAT,
-        "OLLAMA_ANALYSIS_MODEL": MODELO_ANALISE,
         "HF_EMBED_MODEL": MODELO_EMBEDDING,
         "HF_TOKEN": os.getenv("HF_TOKEN", ""),
         "HF_HOME": "/app/storage/huggingface",
@@ -214,7 +210,7 @@ def subir_app(client: docker.DockerClient, imagem) -> None:
 def _preparar_ollama(client: docker.DockerClient, atualizar: bool) -> None:
     ollama = subir_ollama(client, atualizar)
     esperar_ollama(ollama)
-    baixar_modelos(ollama, atualizar)
+    baixar_modelo(ollama, atualizar)
 
 
 def start(client: docker.DockerClient, atualizar: bool = False) -> None:
@@ -246,7 +242,7 @@ def main() -> int:
     cmd_start = comandos.add_parser("start", help="constrói a aplicação e sobe os containers")
     cmd_start.add_argument(
         "--atualizar", action="store_true",
-        help="baixa a versão mais nova da imagem do Ollama e dos modelos",
+        help="baixa a versão mais nova da imagem do Ollama e do modelo",
     )
     comandos.add_parser("stop", help="para e remove os containers (volumes são mantidos)")
     args = parser.parse_args()

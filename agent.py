@@ -66,8 +66,8 @@ INSTRUCAO_CARTAO = """O usuário quer aprender a pronunciar: "{palavra}".
 {{"ingles": "...", "portugues": "...", "ipa": "/.../", "pronuncia": "...", "dica": "...", "exemplo": "frase em inglês", "exemplo_pronuncia": "frase aportuguesada"}}
 Se a palavra não existir no dicionário, responda {{"erro": "explicação curta"}}."""
 
-# Usada quando o modelo de análise já organizou e traduziu a palavra.
-INSTRUCAO_CARTAO_ANALISADO = """O modelo de análise já preparou a palavra:
+# Usada quando o agente de análise já organizou e traduziu a palavra.
+INSTRUCAO_CARTAO_ANALISADO = """A etapa de análise já preparou a palavra:
 - inglês: "{ingles}"
 - português: "{portugues}"
 - classe: {classe}
@@ -121,15 +121,16 @@ class Agente:
         self.ollama = _cliente_ollama()
         self.memoria = MemoriaCurtoPrazo()
         self.rag = BaseRegras()
-        self.analisador = Analisador()
-        verificar_modelos(self.ollama, self.modelo, self.analisador.modelo)
+        # O mesmo modelo faz a análise e o chat: só um modelo fica carregado no Ollama.
+        self.analisador = Analisador(self.modelo)
+        verificar_modelos(self.ollama, self.modelo)
 
     # ---------- API pública (síncrona, para o Streamlit) ----------
 
     def pronunciar(self, palavra: str) -> dict:
         """Gera o cartão de pronúncia de uma palavra (português ou inglês).
 
-        Fluxo: modelo de análise (organiza e traduz) -> agente (IPA, dica, exemplo).
+        Fluxo: agente de análise (organiza e traduz) -> agente (IPA, dica, exemplo).
         """
         analise = self.analisador.analisar(palavra)
         if analise is None:
@@ -152,7 +153,7 @@ class Agente:
         if analise and "ingles" in cartao:
             cartao["analise"] = analise
         if self.analisador.ultimo_erro:
-            cartao["aviso_analise"] = f"O modelo de análise falhou: {self.analisador.ultimo_erro}"
+            cartao["aviso_analise"] = f"A análise falhou: {self.analisador.ultimo_erro}"
         if "ingles" in cartao:
             self.memoria.registrar_palavra(cartao["ingles"])
             self.memoria.adicionar("user", f"Como se pronuncia '{palavra}'?")

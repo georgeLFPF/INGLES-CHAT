@@ -33,7 +33,7 @@ O tutor converte o IPA em uma pronúncia que um brasileiro consegue ler e explic
 | Componente | Onde está | Por que existe |
 |---|---|---|
 | **RAG** | `rag.py` + `data/` | As dicas vêm de uma base de regras de pronúncia para brasileiros. O modelo se apoia em material confiável em vez de depender só do que memorizou. |
-| **Modelo de análise** | `analisador.py` | Antes do agente, um modelo separado corrige erros de digitação, extrai a palavra de frases como "como fala cachorro?" e já entrega o par inglês/português pronto. O agente fica só com a pronúncia. |
+| **Agente de análise** | `analisador.py` | Antes do agente de pronúncia, um agente de análise (com o mesmo modelo) corrige erros de digitação, extrai a palavra de frases como "como fala cachorro?" e já entrega o par inglês/português pronto. O agente fica só com a pronúncia. |
 | **Memória de curto prazo** | `memory.py` | Guarda as últimas mensagens e as palavras da sessão, para perguntas de acompanhamento como "e a rima dela?" funcionarem. |
 | **MCP** | `mcp_server.py` | O IPA, as sílabas e as rimas são dados determinísticos, então vêm de tools em vez de serem "adivinhados" pelo modelo. O servidor também guarda o histórico do aluno em SQLite. |
 | **Interface** | `app.py` (Streamlit) | Tela simples para usuários comuns, sem terminal. |
@@ -49,7 +49,7 @@ Usuário digita uma palavra
    app.py (Streamlit)
         │
         ▼
-   analisador.py  (modelo de análise: corrige, organiza e traduz a palavra)
+   analisador.py  (agente de análise: corrige, organiza e traduz a palavra)
         │
         ▼
    agent.py ──► memory.py   (histórico da sessão)
@@ -72,19 +72,20 @@ Usuário digita uma palavra
 
 ## 🤖 Modelos utilizados
 
-O projeto usa três modelos, cada um com uma função diferente:
+O projeto usa dois modelos: um do Ollama, compartilhado pelos dois agentes, e um de embeddings:
 
 | Função | Modelo | Onde roda | Variável no `.env` |
 |---|---|---|---|
-| **Análise** da entrada | `llama3.2` (3B) | Ollama | `OLLAMA_ANALYSIS_MODEL` |
-| **Chat**: agente de tradução e pronúncia | `llama3.1` (8B) | Ollama | `OLLAMA_MODEL` |
+| **Agentes**: análise da entrada e chat de tradução e pronúncia | `llama3.1` (8B) | Ollama | `OLLAMA_MODEL` |
 | **Embeddings** do RAG | `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | Local (ONNX), baixado do Hugging Face | `HF_EMBED_MODEL` |
 
 ### Por que cada modelo
 
-**`llama3.2` (análise).** A primeira etapa é simples: corrigir erros de digitação, tirar a palavra de frases como "como fala cachorro?" e traduzir para o inglês. Um modelo pequeno (3B) faz isso bem e responde rápido, então o aluno não espera duas vezes o tempo de um modelo grande. A resposta usa saída estruturada (JSON com esquema fixo), o que deixa o resultado previsível mesmo com um modelo menor.
+**`llama3.1` (análise e chat).** Um único modelo atende os dois agentes, então só ele fica carregado na memória do Ollama, em vez de dois modelos disputando RAM/VRAM e sendo trocados a cada pergunta. Os agentes continuam separados, cada um com seu prompt:
+- **Análise:** corrige erros de digitação, tira a palavra de frases como "como fala cachorro?" e traduz para o inglês. Usa saída estruturada (JSON com esquema fixo), o que deixa o resultado previsível.
+- **Chat:** conversa com o aluno, decide quais tools do MCP chamar (IPA, sílabas, rimas, histórico) e escreve a dica e a frase de exemplo. Exige suporte a *tool calling*, que o `llama3.1` tem.
 
-**`llama3.1` (chat).** É o agente que conversa com o aluno, decide quais tools do MCP chamar (IPA, sílabas, rimas, histórico) e escreve a dica e a frase de exemplo. Essa etapa exige suporte a *tool calling*, que o `llama3.1` tem, e um modelo maior (8B), que segue instruções e escreve explicações em português com mais qualidade.
+Em máquinas mais fracas, dá para trocar por `llama3.2` (3B) no `OLLAMA_MODEL`, ao custo de explicações um pouco piores.
 
 **`Xenova/paraphrase-multilingual-MiniLM-L12-v2` (embeddings).**
 - **Multilíngue:** as regras de pronúncia estão em português, e 
@@ -143,7 +144,7 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-No `.env` você escolhe o modelo de chat do Ollama (`OLLAMA_MODEL`), o de análise (`OLLAMA_ANALYSIS_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
+No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
 
 ### 3. Subir os containers
 
@@ -197,11 +198,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Baixar os modelos no Ollama
+### 3. Baixar o modelo no Ollama
 
 ```bash
-ollama pull <modelo-de-chat>     # modelo que conversa e chama as tools
-ollama pull <modelo-de-analise>  # modelo que organiza e traduz a palavra digitada
+ollama pull llama3.1   # o mesmo modelo atende os dois agentes (use o que estiver em OLLAMA_MODEL)
 ```
 
 O modelo de embeddings do RAG (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`) é baixado automaticamente do Hugging Face na primeira execução e roda localmente, sem o Ollama.
@@ -216,7 +216,7 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-No `.env` você escolhe o modelo de chat do Ollama (`OLLAMA_MODEL`), o de análise (`OLLAMA_ANALYSIS_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
+No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
 
 ### 5. Rodar a aplicação
 

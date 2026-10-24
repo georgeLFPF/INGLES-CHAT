@@ -1,5 +1,5 @@
 services:
-  # Servidor Ollama (modelos de chat e de análise)
+  # Servidor Ollama (um só modelo para os agentes de análise e de chat)
   ollama:
     image: ollama/ollama:latest
     container_name: tutor-ollama
@@ -15,7 +15,7 @@ services:
       retries: 30
     restart: unless-stopped
 
-  # Baixa os modelos de chat e de análise uma única vez (ficam salvos no volume ollama_models)
+  # Baixa o modelo uma única vez (fica salvo no volume ollama_models)
   ollama-pull:
     image: ollama/ollama:latest
     container_name: tutor-ollama-pull
@@ -27,8 +27,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        (ollama show ${OLLAMA_MODEL:-llama3.1} >/dev/null 2>&1 || ollama pull ${OLLAMA_MODEL:-llama3.1}) &&
-        (ollama show ${OLLAMA_ANALYSIS_MODEL:-llama3.2} >/dev/null 2>&1 || ollama pull ${OLLAMA_ANALYSIS_MODEL:-llama3.2})
+        ollama show ${OLLAMA_MODEL:-llama3.1} >/dev/null 2>&1 || ollama pull ${OLLAMA_MODEL:-llama3.1}
     restart: "no"
 
   # Aplicação Streamlit (o agente inicia o servidor MCP via stdio dentro deste container)
@@ -40,7 +39,6 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
-      OLLAMA_ANALYSIS_MODEL: ${OLLAMA_ANALYSIS_MODEL:-llama3.2}
       HF_EMBED_MODEL: ${HF_EMBED_MODEL:-Xenova/paraphrase-multilingual-MiniLM-L12-v2}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_HOME: /app/storage/huggingface
