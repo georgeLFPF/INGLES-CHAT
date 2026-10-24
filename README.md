@@ -144,7 +144,7 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
+No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`, coloque sua chave e escolha um modelo do Cloud (ex.: `gpt-oss:20b`). Com a chave, o Ollama local não é iniciado.
 
 ### 3. Subir os containers
 
@@ -170,8 +170,9 @@ Os modelos baixados e o histórico de palavras ficam salvos nos volumes e são r
 
 Se o chat responder com erro e o log do Ollama (`docker logs tutor-ollama`) mostrar `insufficient memory` ou `unable to allocate CPU_REPACK buffer`, o modelo não coube na RAM. O `llama3.1` (8B) precisa de uns 5 GB livres. Nesse caso:
 
-1. Troque o modelo no `.env` por um menor: `OLLAMA_MODEL=llama3.2` (3B, uns 3 GB) ou `llama3.2:1b` (mais leve, respostas piores).
-2. Se o Docker roda no WSL, aumente a memória dele criando `C:\Users\<usuario>\.wslconfig`:
+1. **Use o Ollama Cloud (recomendado em máquinas com até 8 GB de RAM).** No `.env`, coloque sua chave em `OLLAMA_API_KEY` (crie em https://ollama.com/settings/keys) e um modelo do Cloud com tool calling, como `OLLAMA_MODEL=gpt-oss:20b`. Com a chave, o `manage.py` não sobe o Ollama local e a aplicação conversa direto com `https://ollama.com`.
+2. Ou troque o modelo local por um menor: `OLLAMA_MODEL=llama3.2` (3B, uns 3 GB) ou `llama3.2:1b` (mais leve, respostas piores).
+3. Se o Docker roda no WSL, aumente a memória dele criando `C:\Users\<usuario>\.wslconfig`:
 
    ```ini
    [wsl2]
@@ -180,7 +181,7 @@ Se o chat responder com erro e o log do Ollama (`docker logs tutor-ollama`) most
    ```
 
    Depois rode `wsl --shutdown` no Windows e suba os containers de novo.
-3. Pare outros containers que não esteja usando, para liberar RAM.
+4. Pare outros containers que não esteja usando, para liberar RAM.
 
 ### Alternativa: Docker Compose
 
@@ -232,7 +233,7 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
+No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`, coloque sua chave e escolha um modelo do Cloud (ex.: `gpt-oss:20b`). Com a chave, o Ollama local não é iniciado.
 
 ### 5. Rodar a aplicação
 

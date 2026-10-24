@@ -46,10 +46,10 @@ Responda apenas com o JSON."""
 
 
 def _cliente_ollama() -> ollama.Client:
-    headers = {}
+    # Com a chave do Ollama Cloud, o modelo roda nos servidores do Ollama em vez do local.
     if api_key := os.getenv("OLLAMA_API_KEY"):
-        headers["Authorization"] = f"Bearer {api_key}"
-    return ollama.Client(host=os.getenv("OLLAMA_HOST"), headers=headers or None)
+        return ollama.Client(host="https://ollama.com", headers={"Authorization": f"Bearer {api_key}"})
+    return ollama.Client(host=os.getenv("OLLAMA_HOST"))
 
 
 class Analisador:

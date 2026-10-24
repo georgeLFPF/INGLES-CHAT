@@ -33,6 +33,8 @@ CONTAINER_APP = "tutor-app"
 
 MODELO_CHAT = os.getenv("OLLAMA_MODEL", "llama3.1")
 MODELO_EMBEDDING = os.getenv("HF_EMBED_MODEL", "Xenova/paraphrase-multilingual-MiniLM-L12-v2")
+# Com a chave do Ollama Cloud o modelo roda nos servidores do Ollama: o container local não é usado.
+USA_CLOUD = bool(os.getenv("OLLAMA_API_KEY"))
 
 
 def _rede(client: docker.DockerClient):
@@ -221,7 +223,14 @@ def start(client: docker.DockerClient, atualizar: bool = False) -> None:
     # Cliente próprio na thread, para não compartilhar a sessão HTTP entre threads.
     with ThreadPoolExecutor(max_workers=1) as executor:
         build = executor.submit(construir_app, docker.from_env())
-        _preparar_ollama(client, atualizar)
+        if USA_CLOUD:
+            log.info("Usando o Ollama Cloud (%s): o Ollama local não será iniciado.", MODELO_CHAT)
+            # Libera a RAM caso o Ollama local tenha ficado de uma execução anterior.
+            if (local := _container(client, CONTAINER_OLLAMA)) and local.status == "running":
+                log.info("Parando container %s", CONTAINER_OLLAMA)
+                local.stop()
+        else:
+            _preparar_ollama(client, atualizar)
         imagem = build.result()
     subir_app(client, imagem)
     verificar_app(client)
