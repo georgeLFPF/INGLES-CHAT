@@ -66,6 +66,38 @@ AVATAR_PROFESSOR = (
     "</svg>"
 )
 
+# Ícones de traço (estilo Lucide), coloridos pela cor do texto ao redor.
+ICONES = {
+    "ouvir": '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>',
+    "busca": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    "dica": (
+        '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>'
+        '<path d="M9 18h6"/><path d="M10 22h4"/>'
+    ),
+    "livro": '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+    "chat": '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    "brilho": (
+        '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 '
+        '1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>'
+    ),
+    "troca": '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+    "restaurar": '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    "aspas": '<path d="M7 7h4v4c0 3-2 5-4 5"/><path d="M15 7h4v4c0 3-2 5-4 5"/>',
+    "microfone": (
+        '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>'
+        '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>'
+    ),
+}
+
+
+def icone(nome: str, tamanho: int = 18) -> str:
+    return (
+        f'<svg class="icone" width="{tamanho}" height="{tamanho}" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+        f'aria-hidden="true">{ICONES[nome]}</svg>'
+    )
+
+
 _CORES_SALA = {
     "claro": {
         "parede": "#EAF2EC", "lambri": "#D8E7DD", "piso": "#E4CDAA", "tabua": "#D3B78F",
@@ -120,7 +152,8 @@ def _sala_svg(c: dict) -> str:
         f'<text x="450" y="340" font-size="40" {giz}>think → /θɪŋk/</text>',
         f'<text x="450" y="410" font-size="40" {giz}>How do you say...?</text>',
         f'<path d="M450 435 q60 14 120 0 t120 0" stroke="{c["giz"]}" stroke-width="3" fill="none"/>',
-        f'<text x="1150" y="490" font-size="34" text-anchor="end" {giz}>☺</text>',
+        f'<circle cx="1130" cy="478" r="22" stroke="{c["giz"]}" stroke-width="3" fill="none"/>',
+        f'<path d="M1121 472v2M1139 472v2M1119 484q11 10 22 0" stroke="{c["giz"]}" stroke-width="3" fill="none" stroke-linecap="round"/>',
         f'<rect x="380" y="540" width="840" height="14" rx="4" fill="{c["madeira"]}"/>',
         '<rect x="520" y="531" width="28" height="9" rx="3" fill="#FFFFFF"/>',
         '<rect x="560" y="531" width="22" height="9" rx="3" fill="#FFDF00"/>',
