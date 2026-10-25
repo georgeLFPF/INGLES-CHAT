@@ -20,34 +20,12 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 sys.path.insert(0, str(RAIZ))
 
 from agent import Agente  # noqa: E402
+from visual import AVATAR_ALUNO, AVATAR_PROFESSOR, BANDEIRA_BR, BANDEIRA_UK, fundo_sala  # noqa: E402
 
 st.set_page_config(page_title="Tutor de Pronúncia", page_icon="🗣️", layout="centered")
 
 
-# ---------- Visual: bandeiras e temas ----------
-
-# Bandeiras em SVG: os emojis de bandeira não aparecem no Windows (viram "BR" e "GB").
-BANDEIRA_BR = (
-    '<svg viewBox="0 0 28 20" preserveAspectRatio="xMidYMid slice">'
-    '<clipPath id="br-c"><circle cx="14" cy="10" r="4.6"/></clipPath>'
-    '<rect width="28" height="20" fill="#009C3B"/>'
-    '<path d="M14 2.2 25.6 10 14 17.8 2.4 10z" fill="#FFDF00"/>'
-    '<circle cx="14" cy="10" r="4.6" fill="#002776"/>'
-    '<path d="M8.8 8.6Q14 7.4 19.2 11.4" stroke="#fff" stroke-width="1" fill="none" clip-path="url(#br-c)"/>'
-    "</svg>"
-)
-BANDEIRA_UK = (
-    '<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice">'
-    '<clipPath id="uk-s"><path d="M0,0 v30 h60 v-30 z"/></clipPath>'
-    '<clipPath id="uk-t"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z"/></clipPath>'
-    '<g clip-path="url(#uk-s)">'
-    '<path d="M0,0 v30 h60 v-30 z" fill="#012169"/>'
-    '<path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/>'
-    '<path d="M0,0 L60,30 M60,0 L0,30" clip-path="url(#uk-t)" stroke="#C8102E" stroke-width="4"/>'
-    '<path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/>'
-    '<path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/>'
-    "</g></svg>"
-)
+# ---------- Visual: temas ----------
 
 TEMAS = {
     "claro": {
@@ -65,6 +43,8 @@ TEMAS = {
         "vermelho": "#C8102E",
         "destaque": "#0B5FFF",
         "sombra": "0 10px 30px rgba(15,27,45,.08)",
+        "veu": "rgba(244,247,251,.86)",
+        "veu_lados": "rgba(244,247,251,.35)",
     },
     "escuro": {
         "fundo": "#0B1220",
@@ -81,6 +61,8 @@ TEMAS = {
         "vermelho": "#FF5C7A",
         "destaque": "#7AA2FF",
         "sombra": "0 10px 30px rgba(0,0,0,.35)",
+        "veu": "rgba(11,18,32,.86)",
+        "veu_lados": "rgba(11,18,32,.40)",
     },
 }
 
@@ -95,12 +77,28 @@ def aplicar_tema(nome: str) -> dict:
 
 /* Base */
 [data-testid="stApp"] {{
+  /* Sala de aula ao fundo; o véu é mais forte no centro para o conteúdo continuar legível. */
   background:
-    radial-gradient(900px 400px at 0% -10%, var(--fundo-brilho), transparent 60%),
-    radial-gradient(900px 400px at 100% -10%, var(--fundo-brilho2), transparent 60%),
+    linear-gradient(90deg, var(--veu-lados) 0%, var(--veu) calc(50% - 440px),
+      var(--veu) calc(50% + 440px), var(--veu-lados) 100%),
+    url("{fundo_sala(nome)}") center bottom / cover no-repeat,
     var(--fundo);
   color: var(--texto);
 }}
+[data-testid="stAppViewContainer"], [data-testid="stMain"] {{ background: transparent; }}
+
+/* Pop-up de boas-vindas */
+div[role="dialog"] {{ background: var(--superficie) !important; border: 1px solid var(--borda); border-radius: 22px !important; }}
+div[role="dialog"] p, div[role="dialog"] li, div[role="dialog"] h2, div[role="dialog"] div, div[role="dialog"] b {{ color: var(--texto); }}
+div[role="dialog"] button[aria-label="Close"] svg {{ fill: var(--suave); color: var(--suave); }}
+div[role="dialog"] [data-testid="stBaseButton-primary"] p {{ color: #fff !important; }}
+.boas-vindas .bandeiras {{ justify-content: center; margin: .2rem 0 1rem; }}
+.boas-vindas p {{ margin: 0 0 .9rem; color: var(--suave) !important; text-align: center; }}
+.passo {{ display: flex; gap: .7rem; align-items: flex-start; background: var(--superficie2);
+  border: 1px solid var(--borda); border-radius: 14px; padding: .6rem .8rem; margin-bottom: .5rem; font-size: .93rem; }}
+.passo .num {{ flex-shrink: 0; width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--verde); color: #fff !important; font-weight: 800; font-size: .85rem; }}
+.boas-vindas .rodape {{ font-size: .8rem; color: var(--suave) !important; text-align: center; margin-top: .8rem; }}
 [data-testid="stApp"], [data-testid="stApp"] p, [data-testid="stApp"] label, [data-testid="stApp"] li,
 [data-testid="stApp"] h1, [data-testid="stApp"] h2, [data-testid="stApp"] h3,
 [data-testid="stApp"] input, [data-testid="stApp"] textarea, [data-testid="stApp"] button {{
@@ -214,6 +212,11 @@ p.ajuda {{ color: var(--suave); margin: -.3rem 0 .6rem; font-size: .95rem; }}
   border-radius: 999px; padding: .35rem .8rem; font-size: .85rem; }}
 .vazio {{ color: var(--suave); font-size: .9rem; text-align: center; padding: 1rem .5rem;
   border: 1px dashed var(--borda); border-radius: 12px; }}
+[data-testid="stSidebar"] .chip {{ margin-bottom: 0; align-items: center; }}
+[class*="st-key-restaurar"] button {{ background: var(--verde); color: #fff; border: none; border-radius: 10px;
+  min-height: 2.35rem; font-weight: 800; box-shadow: 0 4px 10px rgba(0,156,59,.25); }}
+[class*="st-key-restaurar"] button p {{ color: #fff; font-size: 1.1rem; }}
+[class*="st-key-restaurar"] button:hover {{ background: #0A7E3A; color: #fff; transform: translateY(-1px); }}
 </style>""",
         unsafe_allow_html=True,
     )
@@ -231,6 +234,34 @@ if "tema_escuro" not in st.session_state:
 
 tema = aplicar_tema("escuro" if st.session_state.tema_escuro else "claro")
 
+
+@st.dialog("👋 Bem-vindo ao Tutor de Pronúncia!", width="small")
+def boas_vindas() -> None:
+    passos = [
+        "Digite uma palavra em <b>português ou inglês</b>, como <i>cachorro</i> ou <i>thought</i>.",
+        "Veja o <b>IPA</b>, a pronúncia do jeito brasileiro, uma dica e uma frase de exemplo, e clique em 🔊 para ouvir.",
+        "Pergunte no <b>chat</b> o que quiser sobre a palavra: rimas, sílabas, outros exemplos...",
+        "Na barra lateral, o botão verde <b>↺</b> traz de volta uma palavra que você já estudou.",
+    ]
+    st.markdown(
+        '<div class="boas-vindas">'
+        f'<div class="bandeiras">{bandeira(BANDEIRA_BR)}<span class="seta">⇄</span>{bandeira(BANDEIRA_UK)}</div>'
+        "<p>Um professor de inglês com IA feito para brasileiros: ele mostra como cada palavra soa "
+        "e explica por quê.</p>"
+        + "".join(f'<div class="passo"><span class="num">{i}</span><div>{p}</div></div>' for i, p in enumerate(passos, 1))
+        + '<div class="rodape">Por trás: regras de pronúncia (RAG), memória da conversa e ferramentas MCP.</div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    if st.button("Começar a praticar 🚀", type="primary", use_container_width=True):
+        st.rerun()
+
+
+# Mostra o pop-up só na primeira vez que a página abre nesta sessão.
+if "boas_vindas" not in st.session_state:
+    st.session_state.boas_vindas = True
+    boas_vindas()
+
 # Um agente por sessão do navegador, para que a memória de curto prazo não seja compartilhada.
 if "agente" not in st.session_state:
     try:
@@ -244,6 +275,8 @@ if "agente" not in st.session_state:
         st.stop()
     st.session_state.chat = []
     st.session_state.cartao = None
+    # Cartões já gerados nesta sessão, para restaurar uma palavra sem chamar o modelo de novo.
+    st.session_state.cartoes = {}
 
 agente: Agente = st.session_state.agente
 
@@ -258,7 +291,8 @@ def botao_ouvir(cartao: dict) -> None:
         for rotulo, texto in falas
         if texto
     )
-    components.html(
+    # st.iframe substitui components.html nas versões novas; o texto do modelo já vai escapado.
+    conteudo = (
         f"""<style>
 body {{ margin: 0; font-family: 'Plus Jakarta Sans', system-ui, 'Segoe UI', sans-serif; }}
 button {{ background: {tema["superficie"]}; color: {tema["texto"]}; border: 1px solid {tema["borda"]};
@@ -275,9 +309,35 @@ function falar(texto) {{
   speechSynthesis.cancel();
   speechSynthesis.speak(fala);
 }}
-</script>""",
-        height=46,
+</script>"""
     )
+    if hasattr(st, "iframe"):
+        st.iframe(conteudo, height=46)
+    else:
+        components.html(conteudo, height=46)
+
+
+def guardar_cartao(cartao: dict) -> None:
+    st.session_state.cartao = cartao
+    if cartao.get("ingles"):
+        st.session_state.cartoes[cartao["ingles"].strip().lower()] = cartao
+
+
+def restaurar(palavra: dict) -> None:
+    """Volta a mostrar o cartão de uma palavra do histórico e a coloca como assunto do chat."""
+    chave = palavra["ingles"].strip().lower()
+    if cartao := st.session_state.cartoes.get(chave):
+        agente.memoria.registrar_palavra(chave)
+        agente.memoria.adicionar("user", f"Quero revisar a palavra '{chave}'.")
+        agente.memoria.adicionar("assistant", f"{chave} {cartao.get('ipa', '')} = {cartao.get('pronuncia', '')}")
+        st.session_state.cartao = cartao
+        return
+    # Palavra de outra sessão: o cartão completo não fica salvo, então é gerado de novo.
+    with st.spinner(f"Restaurando '{chave}'..."):
+        try:
+            guardar_cartao(agente.pronunciar(chave))
+        except Exception as e:
+            st.session_state.cartao = {"erro": f"Erro ao consultar o modelo: {e}"}
 
 
 def mostrar_cartao(cartao: dict) -> None:
@@ -330,17 +390,20 @@ with st.sidebar:
     except Exception as e:
         palavras = []
         st.caption(f"Histórico indisponível: {e}")
-    if palavras:
-        st.markdown(
-            "".join(
-                f'<div class="chip"><div><b>{html.escape(p["ingles"])}</b> '
-                f'<small>{html.escape(p.get("ipa") or "")}</small></div>'
-                f'<span>{html.escape(p.get("portugues") or "")}</span></div>'
-                for p in palavras
-            ),
+    # O histórico guarda cada consulta; aqui cada palavra aparece uma vez só.
+    unicas = list({p["ingles"].strip().lower(): p for p in reversed(palavras)}.values())[::-1]
+    for i, p in enumerate(unicas):
+        col_chip, col_botao = st.columns([5, 1], vertical_alignment="center", gap="small")
+        col_chip.markdown(
+            f'<div class="chip"><div><b>{html.escape(p["ingles"])}</b> '
+            f'<small>{html.escape(p.get("ipa") or "")}</small></div>'
+            f'<span>{html.escape(p.get("portugues") or "")}</span></div>',
             unsafe_allow_html=True,
         )
-    else:
+        if col_botao.button("↺", key=f"restaurar_{i}", help=f"Restaurar a sessão de '{p['ingles']}'"):
+            restaurar(p)
+            st.rerun()
+    if not unicas:
         st.markdown('<div class="vazio">Nenhuma palavra ainda.<br>Que tal começar? ✨</div>', unsafe_allow_html=True)
     st.divider()
     if st.button("🧹 Limpar conversa", use_container_width=True):
@@ -372,7 +435,7 @@ if enviar:
     else:
         with st.spinner("Consultando o tutor..."):
             try:
-                st.session_state.cartao = agente.pronunciar(palavra)
+                guardar_cartao(agente.pronunciar(palavra))
             except Exception as e:
                 st.session_state.cartao = {"erro": f"Erro ao consultar o modelo: {e}"}
         st.rerun()
@@ -389,14 +452,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 for msg in st.session_state.chat:
-    with st.chat_message(msg["role"], avatar="🧑‍🎓" if msg["role"] == "user" else "🧑‍🏫"):
+    with st.chat_message(msg["role"], avatar=AVATAR_ALUNO if msg["role"] == "user" else AVATAR_PROFESSOR):
         st.markdown(msg["content"])
 
 if pergunta := st.chat_input("Escreva sua pergunta sobre a palavra pesquisada..."):
     st.session_state.chat.append({"role": "user", "content": pergunta})
-    with st.chat_message("user", avatar="🧑‍🎓"):
+    with st.chat_message("user", avatar=AVATAR_ALUNO):
         st.markdown(pergunta)
-    with st.chat_message("assistant", avatar="🧑‍🏫"):
+    with st.chat_message("assistant", avatar=AVATAR_PROFESSOR):
         with st.spinner("Pensando..."):
             try:
                 resposta = agente.conversar(pergunta)
