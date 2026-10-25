@@ -208,6 +208,10 @@ p.subtitulo {{ color: var(--suave); margin: .2rem 0 1.4rem; font-size: 1.02rem; 
 .chip b {{ color: var(--texto); }}
 .chip small {{ color: var(--suave); font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .75rem; }}
 .chip span {{ color: var(--suave); font-size: .82rem; }}
+p.ajuda {{ color: var(--suave); margin: -.3rem 0 .6rem; font-size: .95rem; }}
+.sugestoes {{ display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1rem; }}
+.sugestoes span {{ background: var(--superficie); border: 1px solid var(--borda); color: var(--texto);
+  border-radius: 999px; padding: .35rem .8rem; font-size: .85rem; }}
 .vazio {{ color: var(--suave); font-size: .9rem; text-align: center; padding: 1rem .5rem;
   border: 1px dashed var(--borda); border-radius: 12px; }}
 </style>""",
@@ -377,12 +381,18 @@ if st.session_state.cartao:
     mostrar_cartao(st.session_state.cartao)
 
 # ---------- Chat ----------
-st.markdown('<div class="secao">💬 Tire suas dúvidas</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="secao">💬 Tire suas dúvidas</div>'
+    '<p class="ajuda">Depois de pesquisar uma palavra, pergunte aqui o que quiser sobre ela. Por exemplo:</p>'
+    '<div class="sugestoes"><span>Quais palavras rimam com ela?</span><span>Quantas sílabas ela tem?</span>'
+    '<span>Me dá outra frase de exemplo</span><span>Qual a diferença para “though”?</span></div>',
+    unsafe_allow_html=True,
+)
 for msg in st.session_state.chat:
     with st.chat_message(msg["role"], avatar="🧑‍🎓" if msg["role"] == "user" else "🧑‍🏫"):
         st.markdown(msg["content"])
 
-if pergunta := st.chat_input("Ex.: me dá rimas, quantas sílabas tem?"):
+if pergunta := st.chat_input("Escreva sua pergunta sobre a palavra pesquisada..."):
     st.session_state.chat.append({"role": "user", "content": pergunta})
     with st.chat_message("user", avatar="🧑‍🎓"):
         st.markdown(pergunta)
