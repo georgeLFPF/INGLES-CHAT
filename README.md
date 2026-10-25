@@ -1,4 +1,4 @@
-# 🗣️ Tutor de Pronúncia de Inglês
+# Fala Fácil: tutor de pronúncia de inglês
 
 Agente de IA que ajuda brasileiros a pronunciar palavras em inglês. O usuário digita uma palavra (em português ou inglês) e recebe a palavra em inglês, a transcrição fonética (IPA), a pronúncia "aportuguesada", uma dica sobre o som mais difícil e uma frase de exemplo.
 
@@ -6,7 +6,7 @@ Agente de IA que ajuda brasileiros a pronunciar palavras em inglês. O usuário 
 
 ---
 
-## 📌 Exemplo
+## Exemplo
 
 **Entrada:** `cachorro`
 
@@ -20,7 +20,7 @@ Exemplo:     The dog is sleeping. → "dâ dóg iz slípin"
 
 ---
 
-## 🎯 Problema e justificativa
+## Problema e justificativa
 
 Quem aprende inglês no Brasil costuma errar a pronúncia por causa de sons que não existem no português (*th*, *-ed*, *ough*, vogais curtas e longas) e da grafia irregular do inglês. Dicionários trazem o IPA, mas ele é pouco acessível para usuários comuns.
 
@@ -28,7 +28,7 @@ O tutor converte o IPA em uma pronúncia que um brasileiro consegue ler e explic
 
 ---
 
-## 🧩 Como os requisitos são atendidos
+## Como os requisitos são atendidos
 
 | Componente | Onde está | Por que existe |
 |---|---|---|
@@ -40,7 +40,7 @@ O tutor converte o IPA em uma pronúncia que um brasileiro consegue ler e explic
 
 ---
 
-## 🏗️ Arquitetura
+## Arquitetura
 
 ```
 Usuário digita uma palavra
@@ -70,7 +70,7 @@ Usuário digita uma palavra
 
 ---
 
-## 🤖 Modelos utilizados
+## Modelos utilizados
 
 O projeto usa dois modelos: um do Ollama, compartilhado pelos dois agentes, e um de embeddings:
 
@@ -104,7 +104,7 @@ Em máquinas mais fracas, dá para trocar por `llama3.2` (3B) no `OLLAMA_MODEL`,
 
 ---
 
-## ⚙️ Requisitos
+## Requisitos
 
 - Python 3.10 ou superior
 - Git
@@ -113,7 +113,7 @@ Em máquinas mais fracas, dá para trocar por `llama3.2` (3B) no `OLLAMA_MODEL`,
 
 ---
 
-## 🐳 Como executar com Docker (recomendado)
+## Como executar com Docker (recomendado)
 
 O script `manage.py` usa o Docker SDK para Python para subir tudo: o Ollama, os modelos e a aplicação. Não é preciso instalar o Ollama na máquina.
 
@@ -192,7 +192,7 @@ docker compose down          # para tudo
 
 ---
 
-## 🚀 Como executar sem Docker
+## Como executar sem Docker
 
 ### 1. Clonar o repositório
 
@@ -245,7 +245,7 @@ O navegador abre em `http://localhost:8501`. O servidor MCP é iniciado automati
 
 ---
 
-## 🖥️ Como usar
+## Como usar
 
 1. Digite uma palavra na caixa de texto (ex.: `cachorro` ou `thought`).
 2. Clique em **Pronunciar**.
@@ -255,7 +255,7 @@ O navegador abre em `http://localhost:8501`. O servidor MCP é iniciado automati
 
 ---
 
-## 🛠️ Tools do servidor MCP
+## Tools do servidor MCP
 
 | Tool | O que faz |
 |---|---|
@@ -277,7 +277,7 @@ Abre o MCP Inspector no navegador, onde cada tool pode ser chamada manualmente.
 
 ---
 
-## 🧠 Decisões técnicas
+## Decisões técnicas
 
 - **IPA via tool, não via modelo:** modelos de linguagem erram transcrições fonéticas. A biblioteca `eng-to-ipa` consulta o dicionário CMU e devolve um resultado verificável.
 - **Palavra desconhecida:** a tool devolve um erro claro, e o agente avisa o usuário em vez de inventar uma pronúncia.
@@ -287,7 +287,7 @@ Abre o MCP Inspector no navegador, onde cada tool pode ser chamada manualmente.
 
 ---
 
-## ⚠️ Limitações
+## Limitações
 
 - A pronúncia aportuguesada é uma aproximação, pois alguns sons do inglês não existem no português.
 - O dicionário cobre principalmente inglês americano.
@@ -297,7 +297,7 @@ Abre o MCP Inspector no navegador, onde cada tool pode ser chamada manualmente.
 ---
 
 
-## 🧰 Tecnologias
+## Tecnologias
 
 Python · MCP (`mcp`) · Ollama · Hugging Face (Xenova, ONNX Runtime) · ChromaDB · Streamlit · SQLite · `eng-to-ipa` · `pronouncing`
 
