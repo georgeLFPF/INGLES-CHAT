@@ -34,8 +34,9 @@ CONTAINER_OLLAMA = "tutor-ollama"
 CONTAINER_APP = "tutor-app"
 
 MODELO_CHAT = os.getenv("OLLAMA_MODEL", "llama3.1")
-MODELO_ANALISE = os.getenv("OLLAMA_ANALYSIS_MODEL", "llama3.2")
 MODELO_EMBEDDING = os.getenv("HF_EMBED_MODEL", "Xenova/paraphrase-multilingual-MiniLM-L12-v2")
+# Com a chave do Ollama Cloud o modelo roda nos servidores do Ollama: o container local não é usado.
+USA_CLOUD = bool(os.getenv("OLLAMA_API_KEY"))
 
 
 def _rede(client: docker.DockerClient):
@@ -61,11 +62,22 @@ def _container(client: docker.DockerClient, nome: str):
         return None
 
 
-def subir_ollama(client: docker.DockerClient):
+def _garantir_imagem(client: docker.DockerClient, imagem: str, atualizar: bool) -> None:
+    # A imagem do Ollama tem alguns GB: só vai ao registry se ela não existir ou se pedirem.
+    if not atualizar:
+        try:
+            client.images.get(imagem)
+            return
+        except NotFound:
+            pass
+    log.info("Baixando imagem %s (pode demorar)...", imagem)
+    client.images.pull(imagem)
+
+
+def subir_ollama(client: docker.DockerClient, atualizar: bool = False):
     container = _container(client, CONTAINER_OLLAMA)
     if container is None:
-        log.info("Baixando imagem %s (pode demorar)...", IMAGEM_OLLAMA)
-        client.images.pull(IMAGEM_OLLAMA)
+        _garantir_imagem(client, IMAGEM_OLLAMA, atualizar)
         log.info("Criando container %s", CONTAINER_OLLAMA)
         container = client.containers.run(
             IMAGEM_OLLAMA,
@@ -87,30 +99,33 @@ def subir_ollama(client: docker.DockerClient):
     return container
 
 
-def esperar_ollama(container, tentativas: int = 30) -> None:
+def esperar_ollama(container, tentativas: int = 60) -> None:
     log.info("Aguardando o Ollama ficar pronto...")
     for _ in range(tentativas):
         if container.exec_run("ollama list").exit_code == 0:
             return
-        time.sleep(2)
+        time.sleep(1)
     raise RuntimeError("O Ollama não respondeu a tempo.")
 
 
-def baixar_modelos(container) -> None:
+def baixar_modelo(container, atualizar: bool = False) -> None:
     # O modelo de embeddings vem do Hugging Face e é baixado pela própria aplicação.
-    for modelo in dict.fromkeys((MODELO_CHAT, MODELO_ANALISE)):
-        log.info("Baixando modelo %s (só demora na primeira vez)...", modelo)
-        resultado = container.exec_run(f"ollama pull {modelo}")
-        if resultado.exit_code != 0:
-            raise RuntimeError(
-                f"Falha ao baixar {modelo}: {resultado.output.decode(errors='replace')}"
-            )
+    # "ollama pull" sempre consulta o registry; se o modelo já está no volume, pula.
+    if not atualizar and container.exec_run(["ollama", "show", MODELO_CHAT]).exit_code == 0:
+        log.info("Modelo %s já está baixado.", MODELO_CHAT)
+        return
+    log.info("Baixando modelo %s (só demora na primeira vez)...", MODELO_CHAT)
+    resultado = container.exec_run(f"ollama pull {MODELO_CHAT}")
+    if resultado.exit_code != 0:
+        raise RuntimeError(
+            f"Falha ao baixar {MODELO_CHAT}: {resultado.output.decode(errors='replace')}"
+        )
 
 
-def construir_app(client: docker.DockerClient) -> None:
+def construir_app(client: docker.DockerClient):
     log.info("Construindo imagem %s...", IMAGEM_APP)
     try:
-        _, logs = client.images.build(path=str(BASE_DIR), tag=IMAGEM_APP, rm=True)
+        imagem, logs = client.images.build(path=str(BASE_DIR), tag=IMAGEM_APP, rm=True)
     except BuildError as e:
         for linha in e.build_log:
             if texto := linha.get("stream", "").strip():
@@ -120,9 +135,10 @@ def construir_app(client: docker.DockerClient) -> None:
     for linha in logs:
         if texto := linha.get("stream", "").strip():
             log.info("  %s", texto)
+    return imagem
 
 
-def verificar_app(client: docker.DockerClient, tentativas: int = 60) -> None:
+def verificar_app(client: docker.DockerClient, tentativas: int = 120) -> None:
     """Espera o Streamlit responder e confere, de dentro do container, se ele enxerga o Ollama."""
     log.info("Aguardando o Streamlit ficar pronto...")
     container = client.containers.get(CONTAINER_APP)
@@ -135,7 +151,7 @@ def verificar_app(client: docker.DockerClient, tentativas: int = 60) -> None:
         )
         if saude.exit_code == 0:
             break
-        time.sleep(2)
+        time.sleep(1)
     else:
         raise RuntimeError("O Streamlit não respondeu a tempo. Veja: docker logs tutor-app")
 
@@ -146,20 +162,41 @@ def verificar_app(client: docker.DockerClient, tentativas: int = 60) -> None:
     # Mesma checagem que o agente faz ao abrir a página, mas aqui o erro aparece no terminal.
     teste = container.exec_run(
         ["python", "-c", "from agent import _cliente_ollama, verificar_modelos, MODELO_CHAT; "
-         "from analisador import MODELO_ANALISE; "
-         "verificar_modelos(_cliente_ollama(), MODELO_CHAT, MODELO_ANALISE)"],
+         "verificar_modelos(_cliente_ollama(), MODELO_CHAT)"],
         workdir="/app",
     )
     if teste.exit_code != 0:
         raise RuntimeError(
             f"A aplicação não conseguiu falar com o Ollama:\n{teste.output.decode(errors='replace')}"
         )
-    log.info("Streamlit conectado ao Ollama (%s, %s).", MODELO_CHAT, MODELO_ANALISE)
+    log.info("Streamlit conectado ao Ollama (%s).", MODELO_CHAT)
 
 
-def subir_app(client: docker.DockerClient) -> None:
-    # Recria sempre, para usar a imagem recém-construída.
+def _ambiente_app() -> dict[str, str]:
+    return {
+        "OLLAMA_HOST": f"http://{CONTAINER_OLLAMA}:11434",
+        "OLLAMA_MODEL": MODELO_CHAT,
+        "HF_EMBED_MODEL": MODELO_EMBEDDING,
+        "HF_TOKEN": os.getenv("HF_TOKEN", ""),
+        "HF_HOME": "/app/storage/huggingface",
+        "OLLAMA_API_KEY": os.getenv("OLLAMA_API_KEY", ""),
+        "DB_PATH": "/app/storage/progresso.db",
+        "CHROMA_DIR": "/app/storage/.chroma",
+    }
+
+
+def subir_app(client: docker.DockerClient, imagem) -> None:
+    ambiente = _ambiente_app()
     if antigo := _container(client, CONTAINER_APP):
+        # Nada mudou (mesma imagem e mesmas variáveis): mantém o container que já está rodando.
+        env_atual = set(antigo.attrs["Config"]["Env"] or [])
+        if (
+            antigo.status == "running"
+            and antigo.image.id == imagem.id
+            and {f"{k}={v}" for k, v in ambiente.items()} <= env_atual
+        ):
+            log.info("Container %s já está atualizado, mantendo.", CONTAINER_APP)
+            return
         antigo.remove(force=True)
     log.info("Criando container %s", CONTAINER_APP)
     client.containers.run(
@@ -167,32 +204,37 @@ def subir_app(client: docker.DockerClient) -> None:
         name=CONTAINER_APP,
         detach=True,
         ports={"8501/tcp": 8501},
-        environment={
-            "OLLAMA_HOST": f"http://{CONTAINER_OLLAMA}:11434",
-            "OLLAMA_MODEL": MODELO_CHAT,
-            "OLLAMA_ANALYSIS_MODEL": MODELO_ANALISE,
-            "HF_EMBED_MODEL": MODELO_EMBEDDING,
-            "HF_TOKEN": os.getenv("HF_TOKEN", ""),
-            "HF_HOME": "/app/storage/huggingface",
-            "OLLAMA_API_KEY": os.getenv("OLLAMA_API_KEY", ""),
-            "DB_PATH": "/app/storage/progresso.db",
-            "CHROMA_DIR": "/app/storage/.chroma",
-        },
+        environment=ambiente,
         volumes={VOLUME_DADOS: {"bind": "/app/storage", "mode": "rw"}},
         network=REDE,
         restart_policy={"Name": "unless-stopped"},
     )
 
 
-def start(client: docker.DockerClient) -> None:
+def _preparar_ollama(client: docker.DockerClient, atualizar: bool) -> None:
+    ollama = subir_ollama(client, atualizar)
+    esperar_ollama(ollama)
+    baixar_modelo(ollama, atualizar)
+
+
+def start(client: docker.DockerClient, atualizar: bool = False) -> None:
     _rede(client)
     _volume(client, VOLUME_MODELOS)
     _volume(client, VOLUME_DADOS)
-    ollama = subir_ollama(client)
-    esperar_ollama(ollama)
-    baixar_modelos(ollama)
-    construir_app(client)
-    subir_app(client)
+    # O build da aplicação não depende do Ollama: roda em paralelo com a subida e os modelos.
+    # Cliente próprio na thread, para não compartilhar a sessão HTTP entre threads.
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        build = executor.submit(construir_app, docker.from_env())
+        if USA_CLOUD:
+            log.info("Usando o Ollama Cloud (%s): o Ollama local não será iniciado.", MODELO_CHAT)
+            # Libera a RAM caso o Ollama local tenha ficado de uma execução anterior.
+            if (local := _container(client, CONTAINER_OLLAMA)) and local.status == "running":
+                log.info("Parando container %s", CONTAINER_OLLAMA)
+                local.stop()
+        else:
+            _preparar_ollama(client, atualizar)
+        imagem = build.result()
+    subir_app(client, imagem)
     verificar_app(client)
     log.info("\nPronto! Acesse http://localhost:8501")
 
@@ -293,7 +335,10 @@ def main() -> int:
         return 1
 
     try:
-        {"start": start, "stop": stop}[args.comando](client)
+        if args.comando == "start":
+            start(client, args.atualizar)
+        else:
+            stop(client)
     except (APIError, DockerException, RuntimeError) as e:
         log.error("Erro: %s", e)
         return 1

@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).parent
 MODELO_CHAT = os.getenv("OLLAMA_MODEL", "llama3.1")
 MAX_RODADAS_TOOLS = 6
+OLLAMA_CLOUD = "https://ollama.com"
 
 SERVIDOR_MCP = StdioServerParameters(
     command=sys.executable,
@@ -66,8 +67,8 @@ INSTRUCAO_CARTAO = """O usuário quer aprender a pronunciar: "{palavra}".
 {{"ingles": "...", "portugues": "...", "ipa": "/.../", "pronuncia": "...", "dica": "...", "exemplo": "frase em inglês", "exemplo_pronuncia": "frase aportuguesada"}}
 Se a palavra não existir no dicionário, responda {{"erro": "explicação curta"}}."""
 
-# Usada quando o modelo de análise já organizou e traduziu a palavra.
-INSTRUCAO_CARTAO_ANALISADO = """O modelo de análise já preparou a palavra:
+# Usada quando o agente de análise já organizou e traduziu a palavra.
+INSTRUCAO_CARTAO_ANALISADO = """A etapa de análise já preparou a palavra:
 - inglês: "{ingles}"
 - português: "{portugues}"
 - classe: {classe}
@@ -80,16 +81,23 @@ INSTRUCAO_CARTAO_ANALISADO = """O modelo de análise já preparou a palavra:
 Se a palavra não existir no dicionário, responda {{"erro": "explicação curta"}}."""
 
 
+def _host_ollama() -> str:
+    # Com a chave do Ollama Cloud, o modelo roda nos servidores do Ollama em vez do local.
+    if os.getenv("OLLAMA_API_KEY"):
+        return OLLAMA_CLOUD
+    return os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+
+
 def _cliente_ollama() -> ollama.Client:
     headers = {}
     if api_key := os.getenv("OLLAMA_API_KEY"):
         headers["Authorization"] = f"Bearer {api_key}"
-    return ollama.Client(host=os.getenv("OLLAMA_HOST"), headers=headers or None)
+    return ollama.Client(host=_host_ollama(), headers=headers or None)
 
 
 def verificar_modelos(cliente: ollama.Client, *modelos: str) -> None:
     """Falha cedo, com mensagem clara, se o servidor Ollama não tiver os modelos."""
-    host = os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+    host = _host_ollama()
     disponiveis = {m.model for m in cliente.list().models}
     faltando = [m for m in modelos if m not in disponiveis and f"{m}:latest" not in disponiveis]
     if faltando:
@@ -121,15 +129,16 @@ class Agente:
         self.ollama = _cliente_ollama()
         self.memoria = MemoriaCurtoPrazo()
         self.rag = BaseRegras()
-        self.analisador = Analisador()
-        verificar_modelos(self.ollama, self.modelo, self.analisador.modelo)
+        # O mesmo modelo faz a análise e o chat: só um modelo fica carregado no Ollama.
+        self.analisador = Analisador(self.modelo)
+        verificar_modelos(self.ollama, self.modelo)
 
     # ---------- API pública (síncrona, para o Streamlit) ----------
 
     def pronunciar(self, palavra: str) -> dict:
         """Gera o cartão de pronúncia de uma palavra (português ou inglês).
 
-        Fluxo: modelo de análise (organiza e traduz) -> agente (IPA, dica, exemplo).
+        Fluxo: agente de análise (organiza e traduz) -> agente (IPA, dica, exemplo).
         """
         analise = self.analisador.analisar(palavra)
         if analise is None:
@@ -152,7 +161,7 @@ class Agente:
         if analise and "ingles" in cartao:
             cartao["analise"] = analise
         if self.analisador.ultimo_erro:
-            cartao["aviso_analise"] = f"O modelo de análise falhou: {self.analisador.ultimo_erro}"
+            cartao["aviso_analise"] = f"A análise falhou: {self.analisador.ultimo_erro}"
         if "ingles" in cartao:
             self.memoria.registrar_palavra(cartao["ingles"])
             self.memoria.adicionar("user", f"Como se pronuncia '{palavra}'?")
