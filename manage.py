@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import docker
@@ -316,7 +317,11 @@ def local() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gerencia o Tutor de Pronúncia (Docker ou local).")
     comandos = parser.add_subparsers(dest="comando", required=True, metavar="{start,stop,local}")
-    comandos.add_parser("start", help="baixa as imagens, constrói a aplicação e sobe os containers")
+    cmd_start = comandos.add_parser("start", help="baixa as imagens, constrói a aplicação e sobe os containers")
+    cmd_start.add_argument(
+        "--atualizar", action="store_true",
+        help="baixa a versão mais nova da imagem do Ollama e dos modelos",
+    )
     comandos.add_parser("stop", help="para e remove os containers (volumes são mantidos)")
     comandos.add_parser("local", help="roda sem Docker, usando o Ollama instalado na máquina")
     args = parser.parse_args()
