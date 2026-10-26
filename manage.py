@@ -1,17 +1,19 @@
-"""Gerencia os containers do Tutor de Pronúncia usando o Docker SDK para Python.
+"""Gerencia o Tutor de Pronúncia: com Docker (via Docker SDK para Python) ou localmente.
 
 Uso:
-    python manage.py start             # sobe tudo, reaproveitando imagens e modelos já baixados
-    python manage.py start --atualizar # também baixa versões novas da imagem do Ollama e do modelo
-    python manage.py stop              # para e remove os containers (volumes são mantidos)
+    python manage.py start   # baixa as imagens, constrói a aplicação e sobe os containers
+    python manage.py stop    # para e remove os containers (volumes são mantidos)
+    python manage.py local   # roda sem Docker, usando o Ollama instalado na máquina
 """
 
 import argparse
 import logging
 import os
+import shutil
+import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+import urllib.request
 from pathlib import Path
 
 import docker
@@ -245,16 +247,85 @@ def stop(client: docker.DockerClient) -> None:
     log.info("Containers parados. Os volumes (modelos e histórico) foram mantidos.")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Gerencia os containers do Tutor de Pronúncia.")
-    comandos = parser.add_subparsers(dest="comando", required=True, metavar="{start,stop}")
-    cmd_start = comandos.add_parser("start", help="constrói a aplicação e sobe os containers")
-    cmd_start.add_argument(
-        "--atualizar", action="store_true",
-        help="baixa a versão mais nova da imagem do Ollama e do modelo",
+def _ollama_respondendo(host: str) -> bool:
+    try:
+        urllib.request.urlopen(f"{host}/api/version", timeout=2)
+        return True
+    except OSError:
+        return False
+
+
+def subir_ollama_local(host: str, tentativas: int = 30) -> subprocess.Popen | None:
+    """Usa o Ollama que já está rodando; se não houver, inicia `ollama serve` em segundo plano."""
+    if _ollama_respondendo(host):
+        log.info("Ollama já está rodando em %s", host)
+        return None
+    executavel = shutil.which("ollama")
+    if executavel is None:
+        raise RuntimeError(
+            "O Ollama não foi encontrado. Instale em https://ollama.com ou use `python manage.py start` (Docker)."
+        )
+    log.info("Iniciando `ollama serve`...")
+    processo = subprocess.Popen(
+        [executavel, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
+    for _ in range(tentativas):
+        if _ollama_respondendo(host):
+            return processo
+        time.sleep(1)
+    processo.terminate()
+    raise RuntimeError(f"O Ollama não respondeu em {host} a tempo.")
+
+
+def local() -> None:
+    """Roda a aplicação direto na máquina, sem Docker."""
+    # Importados aqui: dependem do .env já carregado e só são usados neste modo.
+    from agent import _cliente_ollama, verificar_modelos
+
+    nuvem = bool(os.getenv("OLLAMA_API_KEY"))
+    host = os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+    ollama_local = None if nuvem else subir_ollama_local(host)
+    try:
+        cliente = _cliente_ollama()
+        if not nuvem:
+            # Os modelos do Ollama Cloud já estão disponíveis; só os locais precisam de pull.
+            for modelo in dict.fromkeys((MODELO_CHAT, MODELO_ANALISE)):
+                log.info("Baixando modelo %s (só demora na primeira vez)...", modelo)
+                cliente.pull(modelo)
+        verificar_modelos(cliente, MODELO_CHAT, MODELO_ANALISE)
+        log.info("Ollama pronto (%s, %s). Iniciando o Streamlit...", MODELO_CHAT, MODELO_ANALISE)
+        log.info("Acesse http://localhost:8501  (Ctrl+C para parar)\n")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "streamlit", "run", str(BASE_DIR / "front-end" / "app.py"),
+                 "--server.port=8501"],
+                cwd=BASE_DIR,
+                check=False,
+            )
+        except KeyboardInterrupt:
+            pass
+    finally:
+        # Só encerra o Ollama se foi este script que o iniciou.
+        if ollama_local is not None:
+            log.info("Encerrando o Ollama iniciado por este script.")
+            ollama_local.terminate()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Gerencia o Tutor de Pronúncia (Docker ou local).")
+    comandos = parser.add_subparsers(dest="comando", required=True, metavar="{start,stop,local}")
+    comandos.add_parser("start", help="baixa as imagens, constrói a aplicação e sobe os containers")
     comandos.add_parser("stop", help="para e remove os containers (volumes são mantidos)")
+    comandos.add_parser("local", help="roda sem Docker, usando o Ollama instalado na máquina")
     args = parser.parse_args()
+
+    if args.comando == "local":
+        try:
+            local()
+        except Exception as e:  # ollama.ResponseError, ConnectionError, RuntimeError...
+            log.error("Erro: %s", e)
+            return 1
+        return 0
 
     try:
         client = docker.from_env()

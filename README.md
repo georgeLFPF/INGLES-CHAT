@@ -95,7 +95,7 @@ Em máquinas mais fracas, dá para trocar por `llama3.2` (3B) no `OLLAMA_MODEL`,
 ├── mcp_server.py       # servidor MCP com as tools
 ├── data/
 │   └── regras_pronuncia.txt
-├── manage.py           # start/stop dos containers via Docker SDK
+├── manage.py           # start/stop via Docker SDK e modo local sem Docker
 ├── Dockerfile          # imagem da aplicação
 ├── docker-compose.yml  # alternativa ao manage.py
 ├── requirements.txt
@@ -215,15 +215,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Baixar o modelo no Ollama
-
-```bash
-ollama pull llama3.1   # o mesmo modelo atende os dois agentes (use o que estiver em OLLAMA_MODEL)
-```
-
-O modelo de embeddings do RAG (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`) é baixado automaticamente do Hugging Face na primeira execução e roda localmente, sem o Ollama.
-
-### 4. Configurar o modelo
+### 3. Configurar o `.env`
 
 ```bash
 # Linux / macOS
@@ -235,13 +227,23 @@ copy .env.example .env
 
 No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`, coloque sua chave e escolha um modelo do Cloud (ex.: `gpt-oss:20b`). Com a chave, o Ollama local não é iniciado.
 
-### 5. Rodar a aplicação
+### 4. Rodar a aplicação
 
 ```bash
-streamlit run front-end/app.py
+python manage.py local
 ```
 
-O navegador abre em `http://localhost:8501`. O servidor MCP é iniciado automaticamente pelo agente, então não é preciso rodá-lo à parte.
+O comando usa o Ollama instalado na máquina (e roda `ollama serve` sozinho se ele não estiver aberto), baixa os modelos de chat e de análise, confere a conexão e abre o Streamlit em `http://localhost:8501`. Para parar, use `Ctrl+C`. O histórico de palavras fica em `progresso.db` e o índice do RAG em `.chroma/`, na pasta do projeto.
+
+O modelo de embeddings do RAG (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`) é baixado automaticamente do Hugging Face na primeira execução e roda localmente, sem o Ollama. O servidor MCP é iniciado pelo agente, então não é preciso rodá-lo à parte.
+
+### Alternativa: passo a passo manual
+
+```bash
+ollama pull llama3.1    # modelo de chat (OLLAMA_MODEL)
+ollama pull llama3.2    # modelo de análise (OLLAMA_ANALYSIS_MODEL)
+streamlit run front-end/app.py
+```
 
 ---
 
