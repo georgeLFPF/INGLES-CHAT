@@ -1,4 +1,4 @@
-# 🗣️ Tutor de Pronúncia de Inglês
+# Fala Fácil: tutor de pronúncia de inglês
 
 Agente de IA que ajuda brasileiros a pronunciar palavras em inglês. O usuário digita uma palavra (em português ou inglês) e recebe a palavra em inglês, a transcrição fonética (IPA), a pronúncia "aportuguesada", uma dica sobre o som mais difícil e uma frase de exemplo.
 
@@ -6,7 +6,7 @@ Agente de IA que ajuda brasileiros a pronunciar palavras em inglês. O usuário 
 
 ---
 
-## 📌 Exemplo
+## Exemplo
 
 **Entrada:** `cachorro`
 
@@ -20,7 +20,7 @@ Exemplo:     The dog is sleeping. → "dâ dóg iz slípin"
 
 ---
 
-## 🎯 Problema e justificativa
+## Problema e justificativa
 
 Quem aprende inglês no Brasil costuma errar a pronúncia por causa de sons que não existem no português (*th*, *-ed*, *ough*, vogais curtas e longas) e da grafia irregular do inglês. Dicionários trazem o IPA, mas ele é pouco acessível para usuários comuns.
 
@@ -28,19 +28,19 @@ O tutor converte o IPA em uma pronúncia que um brasileiro consegue ler e explic
 
 ---
 
-## 🧩 Como os requisitos são atendidos
+## Como os requisitos são atendidos
 
 | Componente | Onde está | Por que existe |
 |---|---|---|
 | **RAG** | `rag.py` + `data/` | As dicas vêm de uma base de regras de pronúncia para brasileiros. O modelo se apoia em material confiável em vez de depender só do que memorizou. |
-| **Modelo de análise** | `analisador.py` | Antes do agente, um modelo separado corrige erros de digitação, extrai a palavra de frases como "como fala cachorro?" e já entrega o par inglês/português pronto. O agente fica só com a pronúncia. |
+| **Agente de análise** | `analisador.py` | Antes do agente de pronúncia, um agente de análise (com o mesmo modelo) corrige erros de digitação, extrai a palavra de frases como "como fala cachorro?" e já entrega o par inglês/português pronto. O agente fica só com a pronúncia. |
 | **Memória de curto prazo** | `memory.py` | Guarda as últimas mensagens e as palavras da sessão, para perguntas de acompanhamento como "e a rima dela?" funcionarem. |
 | **MCP** | `mcp_server.py` | O IPA, as sílabas e as rimas são dados determinísticos, então vêm de tools em vez de serem "adivinhados" pelo modelo. O servidor também guarda o histórico do aluno em SQLite. |
 | **Interface** | `app.py` (Streamlit) | Tela simples para usuários comuns, sem terminal. |
 
 ---
 
-## 🏗️ Arquitetura
+## Arquitetura
 
 ```
 Usuário digita uma palavra
@@ -49,7 +49,7 @@ Usuário digita uma palavra
    app.py (Streamlit)
         │
         ▼
-   analisador.py  (modelo de análise: corrige, organiza e traduz a palavra)
+   analisador.py  (agente de análise: corrige, organiza e traduz a palavra)
         │
         ▼
    agent.py ──► memory.py   (histórico da sessão)
@@ -70,21 +70,22 @@ Usuário digita uma palavra
 
 ---
 
-## 🤖 Modelos utilizados
+## Modelos utilizados
 
-O projeto usa três modelos, cada um com uma função diferente:
+O projeto usa dois modelos: um do Ollama, compartilhado pelos dois agentes, e um de embeddings:
 
 | Função | Modelo | Onde roda | Variável no `.env` |
 |---|---|---|---|
-| **Análise** da entrada | `llama3.2` (3B) | Ollama | `OLLAMA_ANALYSIS_MODEL` |
-| **Chat**: agente de tradução e pronúncia | `llama3.1` (8B) | Ollama | `OLLAMA_MODEL` |
+| **Agentes**: análise da entrada e chat de tradução e pronúncia | `llama3.1` (8B) | Ollama | `OLLAMA_MODEL` |
 | **Embeddings** do RAG | `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | Local (ONNX), baixado do Hugging Face | `HF_EMBED_MODEL` |
 
 ### Por que cada modelo
 
-**`llama3.2` (análise).** A primeira etapa é simples: corrigir erros de digitação, tirar a palavra de frases como "como fala cachorro?" e traduzir para o inglês. Um modelo pequeno (3B) faz isso bem e responde rápido, então o aluno não espera duas vezes o tempo de um modelo grande. A resposta usa saída estruturada (JSON com esquema fixo), o que deixa o resultado previsível mesmo com um modelo menor.
+**`llama3.1` (análise e chat).** Um único modelo atende os dois agentes, então só ele fica carregado na memória do Ollama, em vez de dois modelos disputando RAM/VRAM e sendo trocados a cada pergunta. Os agentes continuam separados, cada um com seu prompt:
+- **Análise:** corrige erros de digitação, tira a palavra de frases como "como fala cachorro?" e traduz para o inglês. Usa saída estruturada (JSON com esquema fixo), o que deixa o resultado previsível.
+- **Chat:** conversa com o aluno, decide quais tools do MCP chamar (IPA, sílabas, rimas, histórico) e escreve a dica e a frase de exemplo. Exige suporte a *tool calling*, que o `llama3.1` tem.
 
-**`llama3.1` (chat).** É o agente que conversa com o aluno, decide quais tools do MCP chamar (IPA, sílabas, rimas, histórico) e escreve a dica e a frase de exemplo. Essa etapa exige suporte a *tool calling*, que o `llama3.1` tem, e um modelo maior (8B), que segue instruções e escreve explicações em português com mais qualidade.
+Em máquinas mais fracas, dá para trocar por `llama3.2` (3B) no `OLLAMA_MODEL`, ao custo de explicações um pouco piores.
 
 **`Xenova/paraphrase-multilingual-MiniLM-L12-v2` (embeddings).**
 - **Multilíngue:** as regras de pronúncia estão em português, e 
@@ -103,7 +104,7 @@ O projeto usa três modelos, cada um com uma função diferente:
 
 ---
 
-## ⚙️ Requisitos
+## Requisitos
 
 - Python 3.10 ou superior
 - Git
@@ -112,7 +113,7 @@ O projeto usa três modelos, cada um com uma função diferente:
 
 ---
 
-## 🐳 Como executar com Docker (recomendado)
+## Como executar com Docker (recomendado)
 
 O script `manage.py` usa o Docker SDK para Python para subir tudo: o Ollama, os modelos e a aplicação. Não é preciso instalar o Ollama na máquina.
 
@@ -143,7 +144,7 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-No `.env` você escolhe o modelo de chat do Ollama (`OLLAMA_MODEL`), o de análise (`OLLAMA_ANALYSIS_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
+No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`, coloque sua chave e escolha um modelo do Cloud (ex.: `gpt-oss:20b`). Com a chave, o Ollama local não é iniciado.
 
 ### 3. Subir os containers
 
@@ -155,6 +156,8 @@ python manage.py start
 
 O comando baixa a imagem do Ollama, cria a rede e os volumes, sobe o container do Ollama, baixa os modelos (só demora na primeira vez), constrói a imagem e sobe a aplicação. Ao final, acesse `http://localhost:8501`.
 
+Nas execuções seguintes, a imagem do Ollama e os modelos que já existem localmente não são baixados de novo, o build da aplicação roda em paralelo com a subida do Ollama, e o container da aplicação é mantido se nada mudou. Para buscar versões novas da imagem do Ollama e dos modelos, use `python manage.py start --atualizar`.
+
 ### 4. Parar os containers
 
 ```bash
@@ -162,6 +165,23 @@ python manage.py stop
 ```
 
 Os modelos baixados e o histórico de palavras ficam salvos nos volumes e são reaproveitados na próxima vez.
+
+### Pouca memória (erro ao enviar mensagem no chat)
+
+Se o chat responder com erro e o log do Ollama (`docker logs tutor-ollama`) mostrar `insufficient memory` ou `unable to allocate CPU_REPACK buffer`, o modelo não coube na RAM. O `llama3.1` (8B) precisa de uns 5 GB livres. Nesse caso:
+
+1. **Use o Ollama Cloud (recomendado em máquinas com até 8 GB de RAM).** No `.env`, coloque sua chave em `OLLAMA_API_KEY` (crie em https://ollama.com/settings/keys) e um modelo do Cloud com tool calling, como `OLLAMA_MODEL=gpt-oss:20b`. Com a chave, o `manage.py` não sobe o Ollama local e a aplicação conversa direto com `https://ollama.com`.
+2. Ou troque o modelo local por um menor: `OLLAMA_MODEL=llama3.2` (3B, uns 3 GB) ou `llama3.2:1b` (mais leve, respostas piores).
+3. Se o Docker roda no WSL, aumente a memória dele criando `C:\Users\<usuario>\.wslconfig`:
+
+   ```ini
+   [wsl2]
+   memory=3GB
+   swap=4GB
+   ```
+
+   Depois rode `wsl --shutdown` no Windows e suba os containers de novo.
+4. Pare outros containers que não esteja usando, para liberar RAM.
 
 ### Alternativa: Docker Compose
 
@@ -172,7 +192,7 @@ docker compose down          # para tudo
 
 ---
 
-## 🚀 Como executar sem Docker
+## Como executar sem Docker
 
 ### 1. Clonar o repositório
 
@@ -205,7 +225,7 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-No `.env` você escolhe o modelo de chat do Ollama (`OLLAMA_MODEL`), o de análise (`OLLAMA_ANALYSIS_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`.
+No `.env` você escolhe o modelo do Ollama usado pelos dois agentes (`OLLAMA_MODEL`) e o de embeddings do Hugging Face (`HF_EMBED_MODEL`). Para usar o Ollama Cloud, remova o `#` da linha `OLLAMA_API_KEY`, coloque sua chave e escolha um modelo do Cloud (ex.: `gpt-oss:20b`). Com a chave, o Ollama local não é iniciado.
 
 ### 4. Rodar a aplicação
 
@@ -227,7 +247,7 @@ streamlit run front-end/app.py
 
 ---
 
-## 🖥️ Como usar
+## Como usar
 
 1. Digite uma palavra na caixa de texto (ex.: `cachorro` ou `thought`).
 2. Clique em **Pronunciar**.
@@ -237,7 +257,7 @@ streamlit run front-end/app.py
 
 ---
 
-## 🛠️ Tools do servidor MCP
+## Tools do servidor MCP
 
 | Tool | O que faz |
 |---|---|
@@ -259,7 +279,7 @@ Abre o MCP Inspector no navegador, onde cada tool pode ser chamada manualmente.
 
 ---
 
-## 🧠 Decisões técnicas
+## Decisões técnicas
 
 - **IPA via tool, não via modelo:** modelos de linguagem erram transcrições fonéticas. A biblioteca `eng-to-ipa` consulta o dicionário CMU e devolve um resultado verificável.
 - **Palavra desconhecida:** a tool devolve um erro claro, e o agente avisa o usuário em vez de inventar uma pronúncia.
@@ -269,7 +289,7 @@ Abre o MCP Inspector no navegador, onde cada tool pode ser chamada manualmente.
 
 ---
 
-## ⚠️ Limitações
+## Limitações
 
 - A pronúncia aportuguesada é uma aproximação, pois alguns sons do inglês não existem no português.
 - O dicionário cobre principalmente inglês americano.
@@ -279,7 +299,7 @@ Abre o MCP Inspector no navegador, onde cada tool pode ser chamada manualmente.
 ---
 
 
-## 🧰 Tecnologias
+## Tecnologias
 
 Python · MCP (`mcp`) · Ollama · Hugging Face (Xenova, ONNX Runtime) · ChromaDB · Streamlit · SQLite · `eng-to-ipa` · `pronouncing`
 

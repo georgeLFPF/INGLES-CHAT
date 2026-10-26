@@ -1,6 +1,6 @@
-"""Modelo de análise: organiza o que o aluno digitou e prepara a palavra em inglês.
+"""Agente de análise: organiza o que o aluno digitou e prepara a palavra em inglês.
 
-Roda antes do agente de tradução e pronúncia. Corrige erros de digitação, identifica o
+Roda antes do agente de tradução e pronúncia, usando o mesmo modelo do Ollama. Corrige erros de digitação, identifica o
 idioma, extrai a palavra-alvo de frases como "como fala cachorro?" e traduz para o inglês.
 O agente recebe a palavra pronta e só precisa cuidar da pronúncia.
 """
@@ -14,7 +14,6 @@ import ollama
 
 log = logging.getLogger(__name__)
 
-MODELO_ANALISE = os.getenv("OLLAMA_ANALYSIS_MODEL", "llama3.2")
 PADRAO_INGLES = re.compile(r"^[A-Za-z][A-Za-z' -]{0,39}$")
 
 # Saída estruturada: o Ollama força o modelo a responder neste formato.
@@ -47,14 +46,14 @@ Responda apenas com o JSON."""
 
 
 def _cliente_ollama() -> ollama.Client:
-    headers = {}
+    # Com a chave do Ollama Cloud, o modelo roda nos servidores do Ollama em vez do local.
     if api_key := os.getenv("OLLAMA_API_KEY"):
-        headers["Authorization"] = f"Bearer {api_key}"
-    return ollama.Client(host=os.getenv("OLLAMA_HOST"), headers=headers or None)
+        return ollama.Client(host="https://ollama.com", headers={"Authorization": f"Bearer {api_key}"})
+    return ollama.Client(host=os.getenv("OLLAMA_HOST"))
 
 
 class Analisador:
-    def __init__(self, modelo: str = MODELO_ANALISE):
+    def __init__(self, modelo: str):
         self.modelo = modelo
         self.ollama = _cliente_ollama()
         self.ultimo_erro: str | None = None
