@@ -288,15 +288,14 @@ def local() -> None:
     try:
         cliente = _cliente_ollama()
         if not nuvem:
-            # Os modelos do Ollama Cloud já estão disponíveis; só os locais precisam de pull.
-            for modelo in dict.fromkeys((MODELO_CHAT, MODELO_ANALISE)):
-                log.info("Baixando modelo %s (só demora na primeira vez)...", modelo)
-                for parte in cliente.pull(modelo, stream=True):
-                    if parte.total and parte.completed:
-                        print(f"\r  {parte.completed / parte.total:6.1%}", end="", flush=True)
-                print()
-        verificar_modelos(cliente, MODELO_CHAT, MODELO_ANALISE)
-        log.info("Ollama pronto (%s, %s). Iniciando o Streamlit...", MODELO_CHAT, MODELO_ANALISE)
+            # Os modelos do Ollama Cloud já estão disponíveis; só o local precisa de pull.
+            log.info("Baixando modelo %s (só demora na primeira vez)...", MODELO_CHAT)
+            for parte in cliente.pull(MODELO_CHAT, stream=True):
+                if parte.total and parte.completed:
+                    print(f"\r  {parte.completed / parte.total:6.1%}", end="", flush=True)
+            print()
+        verificar_modelos(cliente, MODELO_CHAT)
+        log.info("Ollama pronto (%s). Iniciando o Streamlit...", MODELO_CHAT)
         log.info("Acesse http://localhost:8501  (Ctrl+C para parar)\n")
         try:
             subprocess.run(
