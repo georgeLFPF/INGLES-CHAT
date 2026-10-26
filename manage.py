@@ -249,14 +249,17 @@ def local() -> None:
             # Os modelos do Ollama Cloud já estão disponíveis; só os locais precisam de pull.
             for modelo in dict.fromkeys((MODELO_CHAT, MODELO_ANALISE)):
                 log.info("Baixando modelo %s (só demora na primeira vez)...", modelo)
-                cliente.pull(modelo)
+                for parte in cliente.pull(modelo, stream=True):
+                    if parte.total and parte.completed:
+                        print(f"\r  {parte.completed / parte.total:6.1%}", end="", flush=True)
+                print()
         verificar_modelos(cliente, MODELO_CHAT, MODELO_ANALISE)
         log.info("Ollama pronto (%s, %s). Iniciando o Streamlit...", MODELO_CHAT, MODELO_ANALISE)
         log.info("Acesse http://localhost:8501  (Ctrl+C para parar)\n")
         try:
             subprocess.run(
                 [sys.executable, "-m", "streamlit", "run", str(BASE_DIR / "front-end" / "app.py"),
-                 "--server.port=8501"],
+                 "--server.port=8501", "--server.headless=true"],
                 cwd=BASE_DIR,
                 check=False,
             )
